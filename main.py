@@ -1,79 +1,91 @@
+import streamlit as st
 import random
-import art
 
-def bj_updates():
-    print(f"Your cards: {player_hand}, current score: {sum(player_hand)}")
-    print(f"Computer's first card: {computer_hand[0]}")
+# --- CONFIG & ASSETS ---
+cards = [11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10]
 
-def final_reveal():
-    print(f"Your final hand: {player_hand}, final score: {sum(player_hand)}")
-    print(f"Computer's final hand: {computer_hand}, final score: {sum(computer_hand)}")
-
-def bj_round():
-    deal_card_to_pc()
-    deal_card_to_pc()
-    deal_card_to_computer()
-    deal_card_to_computer()
-    print(f"Your cards: {player_hand}, current score: {sum(player_hand)}")
-    print(f"Computer's first card: {computer_hand[0]}")
-
-def deal_card_to_pc():
-    player_hand.append(random.choice(cards))
-    ace_check(player_hand)
-
-def deal_card_to_computer():
-    computer_hand.append(random.choice(cards))
-    ace_check(computer_hand)
+# --- HELPER FUNCTIONS ---
+def deal_card():
+    card = random.choice(cards)
+    return card
 
 def ace_check(hand):
     while sum(hand) > 21 and 11 in hand:
         hand.remove(11)
         hand.append(1)
+    return hand
 
-cards = [11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10]
+# --- SESSION STATE (Game Memory) ---
+if 'player_hand' not in st.session_state:
+    st.session_state.player_hand = []
+    st.session_state.computer_hand = []
+    st.session_state.game_active = False
+    st.session_state.message = ""
 
+# --- GAME LOGIC ---
+def start_new_game():
+    st.session_state.player_hand = [deal_card(), deal_card()]
+    st.session_state.computer_hand = [deal_card(), deal_card()]
+    st.session_state.player_hand = ace_check(st.session_state.player_hand)
+    st.session_state.computer_hand = ace_check(st.session_state.computer_hand)
+    st.session_state.game_active = True
+    st.session_state.message = ""
 
-start_game = input("Do you want to play a game of Blackjack? Type 'y' or 'n': ")
+def hit():
+    st.session_state.player_hand.append(deal_card())
+    st.session_state.player_hand = ace_check(st.session_state.player_hand)
+    if sum(st.session_state.player_hand) > 21:
+        st.session_state.game_active = False
+        st.session_state.message = f"You busted with {sum(st.session_state.player_hand)}! You lose."
 
-if start_game == 'y':
-    print(art.logo)
+def stand():
+    st.session_state.game_active = False
+    # Dealer hits until 17
+    while sum(st.session_state.computer_hand) < 17:
+        st.session_state.computer_hand.append(deal_card())
+        st.session_state.computer_hand = ace_check(st.session_state.computer_hand)
+    
+    p_score = sum(st.session_state.player_hand)
+    c_score = sum(st.session_state.computer_hand)
+    
+    if c_score > 21:
+        st.session_state.message = "Computer busted! You win!"
+    elif p_score > c_score:
+        st.session_state.message = f"You win with {p_score} vs {c_score}!"
+    elif p_score == c_score:
+        st.session_state.message = f"It's a draw! Both have {p_score}."
+    else:
+        st.session_state.message = f"You lose! Computer has {c_score}."
 
-while start_game == "y":
-    hit_or_pass = ""
-    player_hand = []
-    computer_hand = []
-    bj_round()
+# --- UI LAYOUT ---
+st.title("🎰 Blackjack")
 
-    if sum(player_hand) == 21:
-        bj_updates()
-        print("You win! your total score is:", sum(player_hand))
+if st.button("New Game"):
+    start_new_game()
 
-    if sum(player_hand) > 21:
-        bj_updates()
-        print("You lose! your total score is:", sum(player_hand))
-    if sum(player_hand) < 21:
-        hit_or_pass = input("Type 'y' to get another card, type 'n' to pass: ")
-        while hit_or_pass == 'y':
-            deal_card_to_pc()
-            bj_updates()
-            if sum(player_hand) < 21:
-                hit_or_pass = input("Type 'y' to get another card, type 'n' to pass: ")
-            else:
-                hit_or_pass = 'n'
-    if sum(player_hand) > 21:
-        print("You lose! your total score is:", sum(player_hand))
-
-    if hit_or_pass == 'n' and sum(player_hand) <= 21:
-        while sum(computer_hand) < 17:
-            deal_card_to_computer()
-    final_reveal()
-    if sum(player_hand) <= 21:
-        if sum(computer_hand) > 21:
-            print("Computer busted! You win!")
-        elif sum(player_hand) == sum(computer_hand):
-            print("You and the computer draw! You both Tie!")
-        elif sum(player_hand) > sum(computer_hand):
-            print("You win! Your total score is:", sum(player_hand))
-        else:
-            print(f"You lose! Your total score is:", sum(player_hand), "while the computers final score is", sum(computer_hand))
-    start_game = input("Do you want to play a game? Type 'y' or 'n': ")
+if st.session_state.player_hand:
+    st.divider()
+    
+    # Display Player Info
+    st.subheader(f"Your Hand: {sum(st.session_state.player_hand)}")
+    st.write(st.session_state.player_hand)
+    
+    # Display Computer Info
+    st.subheader("Computer's Hand")
+    if st.session_state.game_active:
+        # Show only first card during play
+        st.write([st.session_state.computer_hand[0], "??"])
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Hit"):
+                hit()
+                st.rerun()
+        with col2:
+            if st.button("Stand"):
+                stand()
+                st.rerun()
+    else:
+        # Reveal full hand when game is over
+        st.write(st.session_state.computer_hand)
+        st.info(st.session_state.message)
